@@ -1,19 +1,15 @@
 import { program } from 'commander';
 import { createInterface } from 'readline';
-import { parseDiff, truncateDiff } from './parser.js';
-import { resolvePlan } from './license.js';
+import { parseDiff } from './parser.js';
 import { explainFile, buildGlobalSummary, FileExplanation } from './llm.js';
 import {
   printFileExplanation,
   printGlobalSummary,
-  printUpgradeBanner,
   printError,
   printInfo,
   writeMarkdown,
   writeHtml,
 } from './formatter.js';
-
-const FREE_TIER_LIMIT = 200;
 
 program
   .name('why-changed')
@@ -61,11 +57,6 @@ async function readStdin(): Promise<string> {
   });
 }
 
-function buildSystemPromptSuffix(lang: string): string {
-  if (lang === 'en') return '';
-  return `\n\nIMPORTANT: Write your entire response in ${lang} language.`;
-}
-
 async function main() {
   const rawDiff = await readStdin();
 
@@ -81,34 +72,19 @@ async function main() {
     process.exit(1);
   }
 
-  // Resolve plan (free or pro)
-  printInfo('Checking license…');
-  const plan = await resolvePlan();
-
-  let truncated = false;
-  let workingDiff = parsed;
-
-  if (plan === 'free' && parsed.totalLines > FREE_TIER_LIMIT) {
-    truncated = true;
-    workingDiff = truncateDiff(parsed, FREE_TIER_LIMIT);
-    printUpgradeBanner();
-  }
-
   if (options.lang !== 'en') {
-    process.env._WHY_LANG_SUFFIX = buildSystemPromptSuffix(options.lang);
+    process.env._WHY_LANG_SUFFIX = `\n\nIMPORTANT: Write your entire response in ${options.lang} language.`;
   }
 
-  const modelLabel = plan === 'pro' ? 'GPT-4o (Pro)' : 'GPT-4o mini (Free)';
-  printInfo(`Analysing ${workingDiff.files.length} file(s) with ${modelLabel}…\n`);
+  printInfo(`Analysing ${parsed.files.length} file(s)…\n`);
 
   const explanations: FileExplanation[] = [];
 
-  for (const file of workingDiff.files) {
+  for (const file of parsed.files) {
     process.stdout.write(`\x1b[36m\x1b[1m→ ${file.filename}\x1b[0m `);
 
-    const exp = await explainFile(file, plan);
+    const exp = await explainFile(file);
 
-    // Clear the progress indicator line
     process.stdout.write('\r\x1b[K');
 
     if (options.format === 'terminal') {
@@ -118,7 +94,7 @@ async function main() {
     explanations.push(exp);
   }
 
-  const globalSummary = await buildGlobalSummary(explanations, plan);
+  const globalSummary = await buildGlobalSummary(explanations);
 
   if (options.format === 'terminal') {
     printGlobalSummary(globalSummary);
@@ -129,7 +105,6 @@ async function main() {
     const outPath = writeMarkdown(
       explanations,
       globalSummary,
-      truncated,
       options.output ?? 'CHANGES.md'
     );
     console.log(`\n✔ Markdown written to ${outPath}`);
@@ -140,7 +115,6 @@ async function main() {
     const outPath = writeHtml(
       explanations,
       globalSummary,
-      truncated,
       options.output ?? 'CHANGES.html'
     );
     console.log(`\n✔ HTML written to ${outPath}`);

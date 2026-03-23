@@ -7,27 +7,39 @@
     "why-changed": "./bin/why-changed.js"
   },
   "engines": {
-    "node": ">=18"
+    "node": ">=24"
   },
   "scripts": {
     "build": "tsc",
     "dev": "ts-node src/index.ts",
-    "prepublishOnly": "npm run build"
+    "prepublishOnly": "tsc"
   },
   "keywords": [
     "git",
     "diff",
     "ai",
-    "openai",
+    "mistral",
     "cli",
     "developer-tools"
   ],
   "license": "MIT",
+  "author": {
+    "name": "Youn Sylvestre",
+    "url": "https://github.com/Itaromi"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Itaromi/why-changed.git"
+  },
+  "bugs": {
+    "url": "https://github.com/Itaromi/why-changed/issues"
+  },
+  "homepage": "https://github.com/Itaromi/why-changed#readme",
   "dependencies": {
+    "@mistralai/mistralai": "^1.3.6",
     "chalk": "4",
     "commander": "^12.1.0",
-    "dotenv": "^16.4.5",
-    "openai": "^4.67.0"
+    "dotenv": "^16.4.5"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",

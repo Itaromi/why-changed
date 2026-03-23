@@ -1,4 +1,4 @@
-import OpenAI from 'openai';
+import { Mistral } from '@mistralai/mistralai';
 import { FileDiff, fileDiffToString } from './parser.js';
 
 export interface FileExplanation {
@@ -7,11 +7,6 @@ export interface FileExplanation {
   explanation: string;
   risks: string;
   summary: string;
-}
-
-export interface DiffExplanation {
-  files: FileExplanation[];
-  globalSummary: string;
 }
 
 function getSystemPrompt(): string {
@@ -33,25 +28,25 @@ Structure your response EXACTLY as JSON with these fields:
 
 Be technical, concise, and actionable. If risks are minimal, say so briefly.`;
 
-function buildClient(): OpenAI {
-  const apiKey = process.env.OPENAI_API_KEY;
+const MODEL = 'mistral-small-latest';
+
+function buildClient(): Mistral {
+  const apiKey = process.env.MISTRAL_API_KEY;
   if (!apiKey) {
     throw new Error(
-      'OPENAI_API_KEY environment variable is not set.\n' +
-        'Set it with: export OPENAI_API_KEY=your-key\n' +
+      'MISTRAL_API_KEY environment variable is not set.\n' +
+        'Set it with: export MISTRAL_API_KEY=your-key\n' +
         'Or add it to a .env file in your project root.'
     );
   }
-  return new OpenAI({ apiKey });
+  return new Mistral({ apiKey });
 }
 
 export async function explainFile(
   file: FileDiff,
-  plan: 'free' | 'pro',
   onChunk?: (chunk: string) => void
 ): Promise<FileExplanation> {
   const client = buildClient();
-  const model = plan === 'pro' ? 'gpt-4o' : 'gpt-4o-mini';
   const diffContent = fileDiffToString(file);
 
   const userMessage = `File: ${file.filename} (${file.status})
@@ -63,29 +58,29 @@ ${diffContent}
 
   let fullContent = '';
 
-  const stream = await client.chat.completions.create({
-    model,
+  const stream = await client.chat.stream({
+    model: MODEL,
     messages: [
       { role: 'system', content: getSystemPrompt() },
       { role: 'user', content: userMessage },
     ],
-    stream: true,
     temperature: 0.3,
-    max_tokens: 600,
-    response_format: { type: 'json_object' },
+    maxTokens: 600,
+    responseFormat: { type: 'json_object' },
   });
 
-  for await (const chunk of stream) {
-    const delta = chunk.choices[0]?.delta?.content ?? '';
-    fullContent += delta;
-    if (onChunk && delta) onChunk(delta);
+  for await (const event of stream) {
+    const delta = event.data.choices[0]?.delta?.content ?? '';
+    if (typeof delta === 'string') {
+      fullContent += delta;
+      if (onChunk && delta) onChunk(delta);
+    }
   }
 
   let parsed: { explanation: string; risks: string; summary: string };
   try {
     parsed = JSON.parse(fullContent);
   } catch {
-    // Fallback if model returns non-JSON
     parsed = {
       explanation: fullContent,
       risks: 'Unable to parse risks.',
@@ -103,18 +98,16 @@ ${diffContent}
 }
 
 export async function buildGlobalSummary(
-  explanations: FileExplanation[],
-  plan: 'free' | 'pro'
+  explanations: FileExplanation[]
 ): Promise<string> {
   const client = buildClient();
-  const model = plan === 'pro' ? 'gpt-4o' : 'gpt-4o-mini';
 
   const summaryList = explanations
     .map((e) => `- ${e.filename}: ${e.summary}`)
     .join('\n');
 
-  const stream = await client.chat.completions.create({
-    model,
+  const stream = await client.chat.stream({
+    model: MODEL,
     messages: [
       {
         role: 'system',
@@ -126,14 +119,14 @@ export async function buildGlobalSummary(
         content: `Individual file summaries:\n${summaryList}\n\nProvide an overall summary of this changeset.`,
       },
     ],
-    stream: true,
     temperature: 0.3,
-    max_tokens: 200,
+    maxTokens: 200,
   });
 
   let result = '';
-  for await (const chunk of stream) {
-    result += chunk.choices[0]?.delta?.content ?? '';
+  for await (const event of stream) {
+    const delta = event.data.choices[0]?.delta?.content ?? '';
+    if (typeof delta === 'string') result += delta;
   }
   return result.trim();
 }

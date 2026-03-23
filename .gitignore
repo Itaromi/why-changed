@@ -5,3 +5,9 @@ dist/
 *.log
 .DS_Store
 coverage/
+
+# Lockfiles — contributors can use npm, pnpm, bun, or yarn
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
+bun.lockb
