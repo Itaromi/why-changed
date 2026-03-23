@@ -1,0 +1,37 @@
+{
+  "name": "why-changed",
+  "version": "1.0.0",
+  "description": "Explain git diffs in plain language using AI",
+  "main": "dist/index.js",
+  "bin": {
+    "why-changed": "./bin/why-changed.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "ts-node src/index.ts",
+    "prepublishOnly": "npm run build"
+  },
+  "keywords": [
+    "git",
+    "diff",
+    "ai",
+    "openai",
+    "cli",
+    "developer-tools"
+  ],
+  "license": "MIT",
+  "dependencies": {
+    "chalk": "4",
+    "commander": "^12.1.0",
+    "dotenv": "^16.4.5",
+    "openai": "^4.67.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.5.4"
+  }
+}
